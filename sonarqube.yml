@@ -1,0 +1,41 @@
+---
+- name: Install docker and SonarQube
+  hosts: staging 
+  become: true
+  tasks:
+    - name: Install Docker
+      package:
+        name: docker-ce
+        state: present
+
+    - name: Start Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Install pip
+      become: true
+      yum:
+        name: python3-pip
+        state: present
+
+    - name: Install Docker Python module
+      pip:
+        name: docker
+        state: present
+
+    - name: Pull SonarQube image from Docker
+      docker_image:
+        name: sonarqube
+        source: pull
+        state: present
+
+    - name: Start SonarQube container
+      docker_container:
+        name: sonarqube
+        image: sonarqube
+        ports:
+          - "9000:9000"
+        state: started
+        restart_policy: unless-stopped
