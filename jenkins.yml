@@ -1,0 +1,96 @@
+
+---
+- name: Install Git, Java, Maven, and Jenkins on Rocky Linux
+  hosts: staging
+  become: yes
+
+  vars:
+    java_version: "11"  # Change this to the desired Java version
+
+  tasks:
+    # Install Git
+    - name: Install Git
+      package:
+        name: git
+        state: present
+
+    #install java-11 jdk
+    - name: Install Java
+      yum:
+        name: java-11-openjdk
+        state: present
+
+    - name: Set environment variables for Java
+      become_user: root
+      lineinfile:
+        path: /etc/profile
+        line: 'JAVA_HOME=/usr/lib/jvm/java-11-openjdk-11.0.19.0.7-1.el8_7.x86_64'
+
+    - name: Set Java 11 as default
+      alternatives:
+        name: java
+        link: /usr/bin/java
+        path: /usr/lib/jvm/java-11-openjdk-11.0.19.0.7-1.el8_7.x86_64/bin/java
+        priority: 1101
+    - name: Reload environment variables
+      become_user: root
+      shell: source /etc/profile
+      args:
+        executable: /bin/bash
+
+
+    - name: Download Maven tarball
+      become: true
+      get_url:
+       url: https://dlcdn.apache.org/maven/maven-3/3.8.8/binaries/apache-maven-3.8.8-bin.tar.gz
+       dest: /tmp/apache-maven-3.8.8-bin.tar.gz
+
+    - name: Extract Maven tarball
+      unarchive:
+       src: /tmp/apache-maven-3.8.8-bin.tar.gz
+       dest: /opt/
+       remote_src: true
+
+
+    - name: Rename Maven directory
+      file:
+        src: /opt/apache-maven-3.8.8
+        dest: /opt/maven
+        state: link
+
+    - name: Add Maven to system path
+      lineinfile:
+        path: /etc/profile
+        line: "{{ item }}"
+        state: present
+      with_items:
+        - 'MAVEN_HOME="/opt/maven"'
+        - 'PATH=$MAVEN_HOME/bin:$PATH'
+
+    - name: Reload environment variables
+      become_user: root
+      shell: source /etc/profile
+      args:
+        executable: /bin/bash
+
+
+    - name: Download Long Term Jenkins release
+      get_url:
+        url: https://pkg.jenkins.io/redhat-stable/jenkins.repo
+        dest: /etc/yum.repos.d/jenkins.repo
+
+    - name: Import jenkins key from url
+      ansible.builtin.rpm_key:
+        state: present
+        key:  https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+    - name: Install Jenkins
+      package:
+        name: jenkins
+        state: present
+
+    - name: Start and enable Jenkins service
+      become: yes
+      service:
+        name: jenkins
+        state: started
+        enabled: yes
